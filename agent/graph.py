@@ -17,7 +17,7 @@ class TireState(TypedDict):
 # runs the LLM analysis on the dataframe, and returns the updated state.
 # If anything goes wrong, it catches the exception and stores the error
 # message in state rather than crashing the app.
-def fetch_and_analyse(state: TireState) -> TireState:
+def fetch_and_analyze(state: TireState) -> TireState:
     try:
         analysis = analyze_tires_from_df(state["tire_size"], state["dataframe"])
         return {**state, "analysis": analysis, "error": ""}
@@ -26,14 +26,14 @@ def fetch_and_analyse(state: TireState) -> TireState:
 
 
 # Assembles the LangGraph workflow. Currently a single-node graph —
-# the entry point goes straight to fetch_and_analyse, which then ends.
+# the entry point goes straight to fetch_and_analyze, which then ends.
 # This structure makes it straightforward to add additional nodes later
 # (e.g. a price lookup step or a data validation step) without restructuring.
 def build_graph():
     graph = StateGraph(TireState)
-    graph.add_node("fetch_and_analyse", fetch_and_analyse)
-    graph.set_entry_point("fetch_and_analyse")
-    graph.add_edge("fetch_and_analyse", END)
+    graph.add_node("fetch_and_analyze", fetch_and_analyze)
+    graph.set_entry_point("fetch_and_analyze")
+    graph.add_edge("fetch_and_analyze", END)
     return graph.compile()
 
 
