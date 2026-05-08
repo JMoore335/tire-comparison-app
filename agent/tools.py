@@ -2,20 +2,13 @@ import os
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
 from agent.prompts import ANALYSIS_PROMPT
-from data.cache import query_by_size
+from data.cache import query_by_size_and_test
 from dotenv import load_dotenv
 import pandas as pd
 
 load_dotenv()
 
 llm = ChatOpenAI(model="gpt-4o", api_key=os.getenv("OPENAI_API_KEY"))
-
-def get_tire_dataframe(tire_size: str) -> pd.DataFrame:
-    """Query the database and return results as a DataFrame."""
-    rows = query_by_size(tire_size)
-    if not rows:
-        return pd.DataFrame()
-    return pd.DataFrame(rows)
 
 def format_tire_data_for_llm(df: pd.DataFrame) -> str:
     """Format the DataFrame into readable text for the LLM."""
@@ -24,7 +17,7 @@ def format_tire_data_for_llm(df: pd.DataFrame) -> str:
 
     lines = []
     for _, row in df.iterrows():
-        line = f"Brand: {row['brand']} | Model: {row['model']} | Test: {row['test_name']}"
+        line = f"Brand: {row['brand']} | Model: {row['model']} | Test: {row['test_name']} | Vehicle: {row['test_vehicle']}"
         metrics = []
         if row.get("wet_braking"):
             metrics.append(f"Wet Braking: {row['wet_braking']}m")
@@ -48,20 +41,20 @@ def format_tire_data_for_llm(df: pd.DataFrame) -> str:
 
     return "\n\n".join(lines)
 
-def analyse_tires(tire_size: str) -> tuple[pd.DataFrame, str]:
-    """
-    Main function called by the app.
-    Returns the DataFrame for display and the LLM analysis as a string.
-    """
-    df = get_tire_dataframe(tire_size)
-
+def analyse_tires_from_df(tire_size: str, df: pd.DataFrame) -> str:
+    """Run LLM analysis on an already-fetched DataFrame."""
     if df.empty:
-        return df, f"No data found for size {tire_size}. Try running the scraper first."
+        return "No data available to analyse."
 
     formatted = format_tire_data_for_llm(df)
     prompt = ANALYSIS_PROMPT.format(tire_size=tire_size, tire_data=formatted)
-
     response = llm.invoke([HumanMessage(content=prompt)])
-    analysis = response.content
+    return response.content
 
+def analyse_tires(tire_size: str, test_url: str) -> tuple[pd.DataFrame, str]:
+    """Fetch data by test URL and run LLM analysis."""
+    from data.cache import query_by_size_and_test
+    rows = query_by_size_and_test(tire_size, test_url)
+    df = pd.DataFrame(rows) if rows else pd.DataFrame()
+    analysis = analyse_tires_from_df(tire_size, df)
     return df, analysis

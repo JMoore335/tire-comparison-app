@@ -13,6 +13,35 @@ BASE_URL = "https://www.tyrereviews.com"
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 BRANDS = ["michelin", "goodyear", "continental", "bridgestone"]
 
+KNOWN_MANUFACTURERS = [
+    # German
+    "Volkswagen", "VW", "BMW", "Audi", "Mercedes", "Mercedes-Benz",
+    "Porsche", "Opel", "Smart", "Maybach",
+    # British
+    "Vauxhall", "Jaguar", "Land Rover", "Range Rover", "Bentley",
+    "Rolls-Royce", "Lotus", "McLaren", "Aston Martin", "MG",
+    # French
+    "Renault", "Peugeot", "Citroen", "Citroën", "DS", "Alpine",
+    # Italian
+    "Fiat", "Alfa Romeo", "Lancia", "Ferrari", "Lamborghini", "Maserati",
+    # Swedish
+    "Volvo", "Saab", "Polestar",
+    # Czech / Spanish
+    "Skoda", "Škoda", "Seat", "Cupra",
+    # Japanese
+    "Toyota", "Honda", "Nissan", "Mazda", "Subaru", "Mitsubishi",
+    "Lexus", "Infiniti", "Suzuki", "Isuzu", "Daihatsu",
+    # Korean
+    "Hyundai", "Kia", "Genesis",
+    # American
+    "Ford", "Chevrolet", "Dodge", "Jeep", "Cadillac", "Buick",
+    "Lincoln", "Chrysler", "Tesla",
+    # Other
+    "Mini", "MINI", "Dacia", "Lada", "Ssangyong", "SsangYong",
+    "Lynk"
+]
+
+
 def get_test_urls():
     """Scrape all TyreReviews own test article URLs."""
     urls = []
@@ -24,11 +53,11 @@ def get_test_urls():
         for link in soup.select("a[href*='/Tyre-Tests/']"):
             href = link.get("href", "")
             if (href
-                and ".htm" in href
-                and "test_type" not in href
-                and "page=" not in href
-                and "Results-Grid" not in href
-                and "Charts" not in href):
+                    and ".htm" in href
+                    and "test_type" not in href
+                    and "page=" not in href
+                    and "Results-Grid" not in href
+                    and "Charts" not in href):
                 full_url = BASE_URL + href if href.startswith("/") else href
                 if full_url not in urls:
                     urls.append(full_url)
@@ -38,11 +67,13 @@ def get_test_urls():
     print(f"Found {len(urls)} tests.")
     return urls
 
+
 def get_article_metadata(article_url: str):
     """Fetch the main article page to extract tire size, vehicle and test name."""
     try:
         response = requests.get(article_url, headers=HEADERS, timeout=10)
         soup = BeautifulSoup(response.text, "html.parser")
+        body_text = soup.get_text(" ", strip=True)
 
         # Test name from h1
         h1 = soup.find("h1")
@@ -65,7 +96,7 @@ def get_article_metadata(article_url: str):
             if text == "Tyre Size" and i + 1 < len(clean):
                 tire_size = clean[i + 1]
 
-        # --- Fallback: parse the meta description tag ---
+        # --- First fallback: meta description tag ---
         if not test_vehicle or not tire_size:
             meta = soup.find("meta", {"name": "description"}) or \
                    soup.find("meta", {"property": "og:description"})
@@ -83,44 +114,70 @@ def get_article_metadata(article_url: str):
                     )
                     test_vehicle = vehicle_match.group(1).strip() if vehicle_match else None
 
+        # --- Second fallback: search for known manufacturer names in body text ---
+        if not test_vehicle:
+            manufacturer_pattern = "|".join(KNOWN_MANUFACTURERS)
+            vehicle_match = re.search(
+                rf'\b({manufacturer_pattern})\b\s+([A-Z][a-zA-Z0-9]{{1,20}}(?:\s+[A-Z][a-zA-Z0-9]{{1,15}}){{0,2}})',
+                body_text
+            )
+            if vehicle_match:
+                test_vehicle = f"{vehicle_match.group(1)} {vehicle_match.group(2)}".strip()
+
+        # --- Check for multiple tire sizes in body text ---
+        all_sizes = list(set(re.findall(r'\b(\d{3}/\d{2}\s?R\d{2})\b', body_text)))
+        if not tire_size and all_sizes:
+            tire_size = all_sizes[0]
+
+        if len(all_sizes) > 1:
+            print(f"  ⚠ Multiple sizes found: {all_sizes} — using: {tire_size}")
+
+        # --- Check for multiple vehicles ---
+        if test_vehicle:
+            manufacturer_pattern = "|".join(KNOWN_MANUFACTURERS)
+            all_vehicles = list(set(re.findall(
+                rf'\b({manufacturer_pattern})\b\s+[A-Z][a-zA-Z0-9]{{1,20}}',
+                body_text
+            )))
+            if len(all_vehicles) > 1:
+                print(f"  ⚠ Multiple vehicles found: {all_vehicles} — using: {test_vehicle}")
+
         return test_name, test_year, tire_size, test_vehicle
 
     except Exception as e:
         print(f"  Metadata error: {e}")
         return "Unknown", None, None, None
-    
+
+
 def clean_value(text: str):
-    """Strip ranking markers (★, 1, 2, 3) and parse to float."""
+    """Strip ranking markers and parse to float."""
     if not text:
         return None
-    text = re.sub(r'[★▼▲]', '', text)       # Remove star and arrow symbols
-    text = re.sub(r'\s+[123★]$', '', text)   # Remove trailing rank numbers
-    text = re.sub(r'[^\d.\-]', '', text)     # Keep only digits, dot, minus
+    text = re.sub(r'[★▼▲]', '', text)
+    text = re.sub(r'\s+[123★]$', '', text)
+    text = re.sub(r'[^\d.\-]', '', text)
     try:
         return float(text)
     except ValueError:
         return None
 
+
 def extract_brand(tire_name: str):
-    """Extract the brand name from a tire model name (first word)."""
+    """Return brand name from tire name (first word)."""
     if not tire_name or "reference" in tire_name.lower():
         return None
     return tire_name.split()[0]
 
+
 def build_column_map(table):
-    """
-    Parse the two-row header of the TyreReviews results table.
-    Returns a dict mapping field names to column indices.
-    """
+    """Parse the two-row header of the TyreReviews results table."""
     rows = table.find_all("tr")
     if len(rows) < 2:
         return {}
 
-    # Expand the first header row accounting for colspan/rowspan
     first_row = rows[0].find_all(["th", "td"])
     second_row = rows[1].find_all(["th", "td"])
 
-    # Build a flat list of (col_index, group_label, spans_both_rows)
     col_groups = []
     col_idx = 0
     for cell in first_row:
@@ -131,11 +188,10 @@ def build_column_map(table):
             col_groups.append({
                 "idx": col_idx,
                 "group": label,
-                "own_header": rowspan > 1  # True = this cell IS the column header
+                "own_header": rowspan > 1
             })
             col_idx += 1
 
-    # Fill in sub-headers from the second row
     sub_idx = 0
     for col in col_groups:
         if not col["own_header"]:
@@ -147,7 +203,6 @@ def build_column_map(table):
         else:
             col["sub"] = col["group"]
 
-    # Map to our field names using keywords
     field_map = {}
     for col in col_groups:
         group = col.get("group", "")
@@ -172,12 +227,10 @@ def build_column_map(table):
             field_map.setdefault("wet_handling", idx)
         elif "wet" in group and "subj" in sub:
             field_map.setdefault("subj_wet_handling", idx)
-        elif "straight" in sub or "aqua" in sub and "straight" in sub:
+        elif "straight" in sub or ("aqua" in sub and "straight" in sub):
             field_map.setdefault("straight_aquaplaning", idx)
         elif "curved" in sub:
             field_map.setdefault("curved_aquaplaning", idx)
-        elif "circle" in sub:
-            pass  # wet circle — not stored currently
         elif "noise" in sub:
             field_map.setdefault("noise_db", idx)
         elif "comfort" in sub and "subj" in sub:
@@ -186,6 +239,7 @@ def build_column_map(table):
             field_map.setdefault("rolling_resistance", idx)
 
     return field_map
+
 
 def parse_results_grid(grid_url: str, test_name: str, test_year: int, tire_size: str, test_vehicle: str):
     """Fetch and parse a Results Grid page, returning list of tire dicts."""
@@ -199,7 +253,6 @@ def parse_results_grid(grid_url: str, test_name: str, test_year: int, tire_size:
         print(f"  Fetch error: {e}")
         return []
 
-    # Find the largest table (most data cells)
     tables = soup.find_all("table")
     if not tables:
         print(f"  No table found")
@@ -213,8 +266,6 @@ def parse_results_grid(grid_url: str, test_name: str, test_year: int, tire_size:
 
     results = []
     rows = table.find_all("tr")
-
-    # Skip header rows (rows that only contain th elements)
     data_rows = [r for r in rows if r.find("td")]
 
     for row in data_rows:
@@ -228,11 +279,11 @@ def parse_results_grid(grid_url: str, test_name: str, test_year: int, tire_size:
                 return cells[idx].get_text(strip=True)
             return ""
 
-        # Get tire name — check for a link first
         name_idx = col_map.get("name", 1)
         name_cell = cells[name_idx] if name_idx < len(cells) else None
         if not name_cell:
             continue
+
         link = name_cell.find("a")
         tire_name = link.get_text(strip=True) if link else name_cell.get_text(strip=True)
 
@@ -243,7 +294,6 @@ def parse_results_grid(grid_url: str, test_name: str, test_year: int, tire_size:
         if not brand or not tire_name.strip():
             continue
 
-        # Get rank
         rank_text = cell_text("rank")
         rank_match = re.search(r'\d+', rank_text)
         overall_rank = int(rank_match.group()) if rank_match else None
@@ -275,8 +325,9 @@ def parse_results_grid(grid_url: str, test_name: str, test_year: int, tire_size:
 
     return results
 
+
 def scrape_all():
-    """Main entry point — scrapes tests and populates the database."""
+    """Main entry point — scrapes all tests and populates the database."""
     print("Initialising database...")
     init_db()
     clear_db()
@@ -287,7 +338,7 @@ def scrape_all():
     total_saved = 0
 
     for i, article_url in enumerate(test_urls):
-        print(f"\n[{i+1}/3] {article_url}")
+        print(f"\n[{i+1}/{len(test_urls)}] {article_url}")
 
         test_name, test_year, tire_size, test_vehicle = get_article_metadata(article_url)
         print(f"  Name:    {test_name}")
@@ -304,10 +355,11 @@ def scrape_all():
             insert_tire(tire)
             total_saved += 1
 
-        print(f"  Saved:   {len(results)} target brand tires")
+        print(f"  Saved:   {len(results)} tires")
         time.sleep(1.5)
 
     print(f"\nDone. Total tire records saved: {total_saved}")
+
 
 if __name__ == "__main__":
     scrape_all()
