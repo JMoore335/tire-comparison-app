@@ -36,10 +36,10 @@ def format_tire_data_for_llm(df: pd.DataFrame) -> str:
     return "\n\n".join(lines)
 
 
-def analyse_tires_from_df(tire_size: str, df: pd.DataFrame) -> str:
+def analyze_tires_from_df(tire_size: str, df: pd.DataFrame) -> str:
     """Run LLM analysis on an already-fetched DataFrame."""
     if df.empty:
-        return "No data available to analyse."
+        return "No data available to analyze."
 
     formatted = format_tire_data_for_llm(df)
     prompt = ANALYSIS_PROMPT.format(tire_size=tire_size, tire_data=formatted)

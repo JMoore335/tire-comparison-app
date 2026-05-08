@@ -371,15 +371,14 @@ def parse_results_grid(grid_url: str, test_name: str, test_year: int,
 def scrape_all():
     """
     Main entry point. Orchestrates the full scrape:
-    1. Initialise and clear the database
+    1. Initialize and clear the database
     2. Collect all test article URLs from TyreReviews
     3. For each test, fetch metadata from the article page
     4. Fetch and parse the Results Grid page
     5. Insert each tire record into the database
 
-    Includes polite delays between requests to avoid overloading the server.
     """
-    print("Initialising database...")
+    print("Initializing database...")
     init_db()
     clear_db()
 

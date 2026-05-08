@@ -48,7 +48,7 @@ def init_db():
 
     conn.commit()
     conn.close()
-    print("Database initialised.")
+    print("Database initialized.")
 
 
 def clear_db():

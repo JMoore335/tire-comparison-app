@@ -381,7 +381,7 @@ def compute_relative_performance(df_all):
 
     For each test a tire appeared in, its performance on each metric is
     expressed as a percentage above or below the test average. This
-    normalises for differences in test vehicles and conditions, making
+    normalizes for differences in test vehicles and conditions, making
     it valid to compare tires that never appeared in the same test.
 
     The scores are then averaged across all tests each tire appeared in,
@@ -461,7 +461,7 @@ def show_cross_test_comparison(df_all, highlight_model=None):
     st.markdown(
         "Each tire's performance expressed as **% better or worse than the average "
         "competitor in each test it appeared in**. Positive = better than average. "
-        "Scores are averaged across all tests the tire appeared in, normalising for "
+        "Scores are averaged across all tests the tire appeared in, normalizing for "
         "vehicle and conditions. Outliers are excluded using physical bounds."
     )
 

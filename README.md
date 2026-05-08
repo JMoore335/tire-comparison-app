@@ -111,7 +111,7 @@ The app will open at `http://localhost:8501`.
 | **Requests + BeautifulSoup** | Web scraping | Lightweight and reliable for targeting the specific HTML structure of TyreReviews results pages |
 | **SQLite** | Local data storage | Zero-configuration database built into Python, sufficient for this dataset size and straightforward to query |
 | **Pandas** | Data manipulation | Industry standard for tabular data in Python — used for cleaning, ranking, and computing relative performance metrics |
-| **Plotly** | Visualisation | Interactive charts with minimal code; horizontal bar charts render well inside Streamlit |
+| **Plotly** | Visualization | Interactive charts with minimal code; horizontal bar charts render well inside Streamlit |
 | **Python-dotenv** | API key management | Keeps credentials out of the codebase via a local `.env` file |
 
 ---
@@ -119,7 +119,7 @@ The app will open at `http://localhost:8501`.
 ## Project Structure
 
 tire-comparison-app/
-├── app.py                  # Streamlit UI and visualisation logic
+├── app.py                  # Streamlit UI and visualization logic
 ├── agent/
 │   ├── graph.py            # LangGraph workflow
 │   ├── tools.py            # LLM analysis functions
