@@ -5,3 +5,4 @@ __pycache__/
 .DS_Store
 check_data.py
 count_data.py
+metric_test.py

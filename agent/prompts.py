@@ -11,9 +11,7 @@ Please provide:
 
 3. Best for Dry Performance: Which tire performs best in dry conditions and why?
 
-4. Best for Comfort and Noise: Which tire is quietest and most comfortable?
-
-5. Overall Recommendation: If you had to pick one tire, which would it be and why?
+4. Overall Recommendation: If you had to pick one tire, which would it be and why?
 
 Important rules:
 - Only reference metrics that are actually present in the data - do not invent figures
