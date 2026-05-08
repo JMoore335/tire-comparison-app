@@ -3,4 +3,5 @@ venv/
 __pycache__/
 *.pyc
 .DS_Store
-data/tires.db
+check_data.py
+count_data.py
