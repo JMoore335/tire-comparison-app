@@ -14,6 +14,7 @@ jamesmoore197@gmail.com
 
     Test Repeatability - 
         Tire comparison cohorts must share the same tire size and must have been tested on the same vehicle. Cohort-to-cohort comparisons can be made be using the relative score % from it's own test.
+        Relative Score % - This is an aggregate score, calculated by finding the "delta from the best" for each of the five performance metrics. Each performance metric is given equal weight.
 
 ## Data Sources 
     67 tire tests were scraped from tyrereviews.com. (Example test: https://www.tyrereviews.com/Tyre-Tests/2019-Tire-Reviews-UHP-Summer-Tyre-Test.htm).
