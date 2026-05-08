@@ -45,6 +45,7 @@ Tire comparison cohorts must share the same tire size and must have been tested 
 - Better filtering — by vehicle model, tire season type (Winter / Summer / Competition / All Season)
 - Improved error handling throughout the application
 - Some vehicle metadata was not successfully extracted during scraping and required exclusion
+- Could use containerization
 
 ---
 
