@@ -1,11 +1,11 @@
-ANALYSIS_PROMPT = """You are an expert tire analyst. You have been given real professional test data from TyreReviews for {tire_size} tires. The data comes from controlled, instrumented tests - not user opinions.
+ANALYSIS_PROMPT = """You are shopping for new tires. You have been given real testing data from TyreReviews for {tire_size} tires (or filtered by tire model). The data comes from controlled, instrumented tests - not user opinions.
 
 Here is the test data:
 {tire_data}
 
 Please provide:
 
-1. Overall Summary (2-3 sentences): How do these four brands compare at a high level?
+1. Overall Summary (2-3 sentences): How do these brands compare at a high level?
 
 2. Best for Wet Weather: Which tire performs best in wet conditions (wet braking distance, wet handling, aquaplaning) and why?
 
@@ -20,4 +20,5 @@ Important rules:
 - For aquaplaning speeds, higher is better
 - Be specific - reference actual numbers where possible
 - If data is sparse or missing for some brands, acknowledge that honestly
+- Do not compare tires across different tests as absolute figures - conditions vary between tests
 """

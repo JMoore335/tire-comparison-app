@@ -5,7 +5,7 @@ import numpy as np
 from agent.graph import tire_graph
 from data.cache import (
     get_all_sizes, get_all_models, query_by_size,
-    query_by_model, get_metric_ranges, init_db
+    query_by_model, init_db
 )
 
 init_db()
@@ -28,16 +28,10 @@ if "search_mode" not in st.session_state:
     st.session_state.search_mode = "size"
 
 @st.cache_data
-def load_metric_ranges():
-    return get_metric_ranges()
-
-@st.cache_data
 def load_all_models():
     return get_all_models()
 
-metric_ranges = load_metric_ranges()
 all_models = load_all_models()
-
 available_sizes = get_all_sizes()
 
 # Sidebar - Model search first
@@ -140,8 +134,6 @@ METRIC_BOUNDS = {
     "wet_handling":         (60, 200),
     "dry_handling":         (60, 200),
     "straight_aquaplaning": (40, 120),
-    "curved_aquaplaning":   (0, 20),
-    "overall_score":        (0, 100),
 }
 
 METRIC_DESCRIPTIONS = {
@@ -247,8 +239,6 @@ def show_table_heatmap(df, highlight_model=None):
 
     if "Rank" in display_df.columns:
         display_df = display_df.sort_values("Rank", ascending=True).reset_index(drop=True)
-
-    if "Rank" in display_df.columns:
         display_df["Rank"] = pd.to_numeric(display_df["Rank"], errors="coerce")
         display_df["Rank"] = display_df["Rank"].apply(
             lambda x: int(x) if pd.notna(x) else ""
@@ -259,19 +249,12 @@ def show_table_heatmap(df, highlight_model=None):
         if display_df[col].dtype in ["float64", "float32"]
     }
 
-    colorable_cols = {k: v for k, v in DISPLAY_COLS.items()
-                      if v in display_df.columns and v in COLUMN_COLORING}
-
     styled = display_df.style
 
-    for db_col, display_col in colorable_cols.items():
+    for db_col, display_col in DISPLAY_COLS.items():
         cmap = COLUMN_COLORING.get(display_col)
-        if cmap and display_df[display_col].notna().any():
-            styled = styled.background_gradient(
-                subset=[display_col],
-                cmap=cmap,
-                axis=0
-            )
+        if cmap and display_col in display_df.columns and display_df[display_col].notna().any():
+            styled = styled.background_gradient(subset=[display_col], cmap=cmap, axis=0)
 
     if format_dict:
         styled = styled.format(format_dict, na_rep="")
@@ -301,23 +284,15 @@ def show_bar_charts(df, highlight_model=None):
         plot_df = plot_df.sort_values(col, ascending=not lower_better)
         plot_df[col] = plot_df[col].round(2)
 
-        if highlight_model:
-            colors = [
-                "#2ecc71" if m == highlight_model else "#5b9bd5"
-                for m in plot_df["model"]
-            ]
-        else:
-            colors = ["#5b9bd5"] * len(plot_df)
+        colors = [
+            "#2ecc71" if (highlight_model and m == highlight_model) else "#5b9bd5"
+            for m in plot_df["model"]
+        ]
 
         data_min = plot_df[col].min()
         data_max = plot_df[col].max()
         padding = (data_max - data_min) * 0.3
-        x_range = [
-            round(data_min - padding, 2),
-            round(data_max + padding, 2)
-        ]
-
-        y_label = METRIC_UNITS.get(label, "Value")
+        x_range = [round(data_min - padding, 2), round(data_max + padding, 2)]
 
         fig = go.Figure()
         fig.add_trace(go.Bar(
@@ -334,10 +309,7 @@ def show_bar_charts(df, highlight_model=None):
             title=f"{label} ({'lower is better' if lower_better else 'higher is better'})",
             height=max(300, len(plot_df) * 45),
             margin=dict(t=50, b=40, l=20, r=80),
-            xaxis=dict(
-                title=y_label,
-                range=x_range
-            ),
+            xaxis=dict(title=METRIC_UNITS.get(label, "Value"), range=x_range),
             yaxis=dict(),
             showlegend=False
         )
@@ -366,10 +338,11 @@ def compute_relative_performance(df_all):
                 if test_avg == 0:
                     continue
 
-                if col in LOWER_IS_BETTER:
-                    relative = (test_avg - tire_val) / test_avg * 100
-                else:
-                    relative = (tire_val - test_avg) / test_avg * 100
+                relative = (
+                    (test_avg - tire_val) / test_avg * 100
+                    if col in LOWER_IS_BETTER
+                    else (tire_val - test_avg) / test_avg * 100
+                )
 
                 records.append({
                     "brand": row["brand"],
@@ -384,27 +357,26 @@ def compute_relative_performance(df_all):
 
     records_df = pd.DataFrame(records)
 
-    agg = records_df.groupby(["brand", "model", "metric"]).agg(
-        avg_relative=("relative", "mean"),
-        appearances=("test_count", "sum")
-    ).reset_index()
+    pivot = (
+        records_df
+        .groupby(["brand", "model", "metric"])
+        .agg(avg_relative=("relative", "mean"), appearances=("test_count", "sum"))
+        .reset_index()
+        .pivot_table(index=["brand", "model"], columns="metric", values="avg_relative")
+        .reset_index()
+    )
 
-    pivot = agg.pivot_table(
-        index=["brand", "model"],
-        columns="metric",
-        values="avg_relative"
-    ).reset_index()
-
-    appearances = records_df.groupby(["brand", "model"])["test_count"].sum().reset_index()
-    appearances.columns = ["brand", "model", "tests"]
+    appearances = (
+        records_df.groupby(["brand", "model"])["test_count"]
+        .sum().reset_index()
+        .rename(columns={"test_count": "tests"})
+    )
     pivot = pivot.merge(appearances, on=["brand", "model"])
 
     metric_cols = [c for c in pivot.columns if c in NUMERIC_METRICS]
     pivot["Relative Score (%)"] = pivot[metric_cols].mean(axis=1).round(2)
     pivot = pivot.sort_values("Relative Score (%)", ascending=False)
-    pivot["Rank"] = pivot["Relative Score (%)"].rank(
-        ascending=False, method="min"
-    ).astype(int)
+    pivot["Rank"] = pivot["Relative Score (%)"].rank(ascending=False, method="min").astype(int)
 
     return pivot
 
@@ -425,14 +397,11 @@ def show_cross_test_comparison(df_all, highlight_model=None):
         return
 
     ordered_metrics = [m for m in NUMERIC_METRICS if m in pivot.columns]
-    display_cols = ["model", "Rank", "Relative Score (%)"] + ordered_metrics
-    display_cols = [c for c in display_cols if c in pivot.columns]
-
+    display_cols = [c for c in ["model", "Rank", "Relative Score (%)"] + ordered_metrics
+                    if c in pivot.columns]
     display_df = pivot[display_cols].reset_index(drop=True)
 
-    format_cols = [c for c in ordered_metrics + ["Relative Score (%)"]
-                   if c in display_df.columns]
-    gradient_cols = format_cols
+    format_cols = [c for c in ordered_metrics + ["Relative Score (%)"] if c in display_df.columns]
 
     def highlight_model_row(row):
         if highlight_model and row.get("model") == highlight_model:
@@ -441,16 +410,13 @@ def show_cross_test_comparison(df_all, highlight_model=None):
 
     styled = (
         display_df.style
-        .background_gradient(subset=gradient_cols, cmap="RdYlGn", axis=0)
+        .background_gradient(subset=format_cols, cmap="RdYlGn", axis=0)
         .format({col: "{:.2f}" for col in format_cols})
         .apply(highlight_model_row, axis=1)
     )
 
     st.dataframe(styled, use_container_width=True, hide_index=True)
-    st.caption(
-        "% above/below test average. Green = consistently above average. "
-        "Red = consistently below average."
-    )
+    st.caption("% above/below test average. Green = consistently above average. Red = consistently below average.")
 
 
 def show_per_test_sections(grouped, highlight_model=None):
@@ -473,10 +439,10 @@ def show_per_test_sections(grouped, highlight_model=None):
             incomplete = ranked_df[ranked_df["data_completeness"] < 100]
             if not incomplete.empty:
                 missing_models = ", ".join(incomplete["model"].tolist())
-                n_available = len([
-                    col for col in RANK_METRICS
+                n_available = sum(
+                    1 for col in RANK_METRICS
                     if col in ranked_df.columns and ranked_df[col].notna().any()
-                ])
+                )
                 st.warning(
                     f"Some tires have incomplete metric data: **{missing_models}**. "
                     f"Their scores are calculated from available metrics only "
@@ -499,7 +465,6 @@ def run_llm_analysis(label, df_all):
     with st.spinner("Running AI analysis..."):
         result = tire_graph.invoke({
             "tire_size": label,
-            "test_url": "",
             "dataframe": df_all,
             "analysis": "",
             "error": ""
